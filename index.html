@@ -1,0 +1,1532 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>Tsumego Dojo</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&family=Shippori+Mincho:wght@600;800&display=swap">
+<style>
+/* Layout: a kaya board that owns the left of the screen; a quiet control column on the right that stacks under the board on phones. */
+:root {
+  --bg: #eceff2;
+  --surface: #f7f8fa;
+  --ink: #1a2130;
+  --muted: #5b6474;
+  --line: #d3d8e0;
+  --accent: #2c4d85;
+  --accent-ink: #ffffff;
+  --right: #2b7a4b;
+  --wrong: #b13a3a;
+  --gold: #c8960f;
+  --kaya: #dcb06c;
+  --kaya-deep: #c79a55;
+  --grid: #3b2a14;
+  --label: #6b5a40;
+  --stone-b: #16181c;
+  --stone-b-hi: #4a4f58;
+  --stone-w: #e9e6df;
+  --stone-w-hi: #ffffff;
+  --mark-dark: #f3efe6;
+  --mark-light: #1a1610;
+  --display: "Shippori Mincho", "Hiragino Mincho ProN", "Yu Mincho", Georgia, serif;
+  --body: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #11151c; --surface: #191e27; --ink: #e5e8ee; --muted: #98a1b0; --line: #2a313e;
+    --accent: #8eb0ea; --accent-ink: #0f1520; --right: #5cc489; --wrong: #ee7f7f; --gold: #e8bb45;
+    --kaya: #c9a062; --kaya-deep: #b3894b; --grid: #2a1c0b; --label: #a99878;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #11151c; --surface: #191e27; --ink: #e5e8ee; --muted: #98a1b0; --line: #2a313e;
+  --accent: #8eb0ea; --accent-ink: #0f1520; --right: #5cc489; --wrong: #ee7f7f; --gold: #e8bb45;
+  --kaya: #c9a062; --kaya-deep: #b3894b; --grid: #2a1c0b; --label: #a99878;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+html, body { min-height: 100%; }
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--body);
+  font-size: 15px;
+  line-height: 1.5;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 20px 40px;
+}
+.wrap { max-width: 1180px; margin: 0 auto; display: flex; flex-direction: column; gap: 18px; }
+
+header.top { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+h1 {
+  font-family: var(--display); font-weight: 800; font-size: clamp(26px, 4vw, 34px);
+  letter-spacing: 0.01em; margin: 0; line-height: 1.1; text-wrap: balance;
+}
+h1 .kanji { font-weight: 600; color: var(--muted); font-size: 0.6em; margin-left: 10px; letter-spacing: 0.15em; }
+.keys { font-family: var(--mono); font-size: 12px; color: var(--muted); display: flex; gap: 14px; flex-wrap: wrap; }
+.keys kbd { font-family: inherit; border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 4px; padding: 0 5px; margin-right: 4px; color: var(--ink); background: var(--surface); }
+
+.app { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 24px; align-items: start; }
+@media (max-width: 860px) { .app { grid-template-columns: minmax(0, 1fr); } #rushBlock, #ladderBlock { order: 2; } }
+
+/* Board */
+.board-col { min-width: 0; display: flex; flex-direction: column; gap: 10px; }
+/* One fixed square for every puzzle, sized to fit the screen, so nothing shifts between problems. */
+.goban-frame {
+  position: relative;
+  width: min(100%, max(320px, min(760px, calc(100vh - 150px))));
+  aspect-ratio: 1 / 1;
+  max-width: 100%;
+  margin: 0 auto;
+}
+.goban-frame { border-radius: 10px; }
+.goban-frame.flash { animation: solvedFlash 1.5s ease-out; }
+@keyframes solvedFlash {
+  0% { box-shadow: 0 0 0 0 transparent; }
+  20% { box-shadow: 0 0 0 3px color-mix(in srgb, var(--right) 75%, transparent), 0 0 26px 6px color-mix(in srgb, var(--right) 35%, transparent); }
+  100% { box-shadow: 0 0 0 0 transparent; }
+}
+@media (prefers-reduced-motion: reduce) { .goban-frame.flash { animation: solvedFlashStill 1.5s step-end; } }
+@keyframes solvedFlashStill { 0% { box-shadow: 0 0 0 3px var(--right); } 100% { box-shadow: none; } }
+.goban-frame.flash-wrong { animation: wrongFlash 1.2s ease-out; }
+@keyframes wrongFlash {
+  0% { box-shadow: 0 0 0 0 transparent; }
+  20% { box-shadow: 0 0 0 3px color-mix(in srgb, var(--wrong) 75%, transparent), 0 0 26px 6px color-mix(in srgb, var(--wrong) 35%, transparent); }
+  100% { box-shadow: 0 0 0 0 transparent; }
+}
+@media (prefers-reduced-motion: reduce) { .goban-frame.flash-wrong { animation: wrongFlashStill 1.2s step-end; } }
+@keyframes wrongFlashStill { 0% { box-shadow: 0 0 0 3px var(--wrong); } 100% { box-shadow: none; } }
+#board { display: block; width: 100%; height: 100%; touch-action: manipulation; user-select: none; -webkit-user-select: none; }
+#board.playable { cursor: pointer; }
+.board-caption { display: flex; justify-content: space-between; gap: 10px; max-width: min(100%, max(320px, min(760px, calc(100vh - 150px)))); width: 100%; min-height: 18px; margin: 0 auto; font-family: var(--mono); font-size: 12px; color: var(--muted); flex-wrap: wrap; }
+
+/* Panel */
+.panel { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+section.block { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 16px; display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.eyebrow { font-size: 11px; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); margin: 0; }
+
+.prob-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
+.prob-title { font-family: var(--display); font-weight: 600; font-size: 20px; line-height: 1.25; margin: 0; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rank-chip { flex: none; font-family: var(--mono); font-weight: 500; font-size: 13px; padding: 2px 9px; border-radius: 999px; border: 1px solid var(--ink); }
+.meta { font-family: var(--mono); font-size: 12px; color: var(--muted); display: flex; gap: 12px; flex-wrap: nowrap; overflow: hidden; white-space: nowrap; min-height: 18px; }
+.meta a { color: var(--accent); }
+
+.status { display: flex; align-items: center; gap: 10px; font-weight: 600; font-size: 16px; min-height: 26px; white-space: nowrap; overflow: hidden; }
+.status .dot { width: 18px; height: 18px; border-radius: 50%; flex: none; }
+.status .dot.B { background: radial-gradient(circle at 35% 30%, var(--stone-b-hi), var(--stone-b) 70%); }
+.status .dot.W { background: radial-gradient(circle at 35% 30%, var(--stone-w-hi), var(--stone-w) 70%); box-shadow: inset 0 0 0 1px rgba(0,0,0,.25); }
+.status.solved { color: var(--right); }
+.status.failed { color: var(--wrong); }
+.status.shown { color: var(--accent); }
+.status .pill { font-family: var(--mono); font-size: 11px; font-weight: 500; text-transform: uppercase; letter-spacing: 0.08em; padding: 2px 8px; border-radius: 999px; border: 1px solid currentColor; }
+
+/* Fixed height: long notes scroll inside instead of pushing the buttons down. */
+.comment { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 14px; color: var(--ink); height: 8em; overflow-y: auto; margin: 0; padding-top: 10px; border-top: 1px solid var(--line); }
+
+/* Icon buttons with a small label underneath; which ones show depends on the problem's state. */
+.actions { display: flex; gap: 8px; }
+.actions button { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; padding: 9px 4px 7px; min-height: 62px; }
+.actions button svg { width: 24px; height: 24px; flex: none; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.actions button span { font-size: 11.5px; font-weight: 500; line-height: 1.2; white-space: nowrap; }
+.actions button.retry { color: var(--wrong); border-color: var(--wrong); }
+.actions button.retry:hover:not(:disabled) { border-color: var(--wrong); background: color-mix(in srgb, var(--wrong) 10%, var(--bg)); }
+.actions button.solution svg { color: var(--gold); fill: currentColor; stroke-width: 1.4; }
+/* After two misses on a problem, the hint button lights up green. */
+.actions button.suggest { color: var(--right); border-color: var(--right); background: color-mix(in srgb, var(--right) 12%, var(--bg)); box-shadow: 0 0 0 3px color-mix(in srgb, var(--right) 22%, transparent); }
+.actions button.suggest:hover:not(:disabled) { border-color: var(--right); }
+button, .btn {
+  font: inherit; font-size: 14px; font-weight: 500; color: var(--ink);
+  background: var(--bg); border: 1px solid var(--line); border-radius: 8px;
+  padding: 9px 10px; cursor: pointer; min-height: 40px;
+  transition: border-color .15s, background .15s;
+}
+button:hover:not(:disabled) { border-color: var(--ink); }
+button:disabled { opacity: .45; cursor: default; }
+button.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+button.primary:hover:not(:disabled) { filter: brightness(1.08); border-color: var(--accent); }
+button.danger-armed { border-color: var(--wrong); color: var(--wrong); }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.filters { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+label.field { display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: var(--muted); }
+select {
+  font: inherit; font-size: 14px; color: var(--ink); background: var(--bg);
+  border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; min-height: 40px; width: 100%;
+}
+.toggles { display: flex; flex-direction: column; gap: 8px; }
+.toggle { display: flex; align-items: center; gap: 10px; font-size: 14px; cursor: pointer; }
+.toggle input { width: 16px; height: 16px; accent-color: var(--accent); }
+
+.tally { display: flex; flex-direction: column; gap: 8px; }
+.bar { display: flex; height: 8px; border-radius: 999px; overflow: hidden; background: var(--line); }
+.bar span { display: block; height: 100%; }
+.bar .s { background: var(--right); }
+.bar .f { background: var(--wrong); }
+.tally-nums { display: flex; justify-content: space-between; gap: 8px; font-family: var(--mono); font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; flex-wrap: wrap; }
+.tally-nums b { color: var(--ink); font-weight: 500; }
+
+.lib-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.note { font-size: 13px; color: var(--muted); margin: 0; }
+.note code { font-family: var(--mono); font-size: 12px; }
+.source { font-size: 14px; margin: 0; }
+.source b { font-variant-numeric: tabular-nums; }
+.error { color: var(--wrong); font-size: 13px; margin: 0; }
+.visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+/* Modes: Practice · Rush · Ladder */
+.tabs { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 4px; }
+.tabs button { border: 0; background: transparent; min-height: 36px; font-weight: 600; }
+.tabs button:hover:not(:disabled) { background: var(--bg); }
+.tabs button[aria-selected="true"] { background: var(--accent); color: var(--accent-ink); }
+.rush-modes { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.rush-modes button { display: flex; flex-direction: column; align-items: center; gap: 2px; min-height: 66px; }
+.rush-modes b { font-size: 16px; }
+.rush-modes span { font-family: var(--mono); font-size: 12px; color: var(--muted); }
+.hud { display: flex; justify-content: space-between; align-items: flex-end; gap: 12px; }
+.clock { font-family: var(--mono); font-size: 34px; font-weight: 500; line-height: 1; font-variant-numeric: tabular-nums; }
+.clock.low { color: var(--wrong); }
+.score-big { font-family: var(--display); font-size: 44px; font-weight: 800; line-height: 1; text-align: right; font-variant-numeric: tabular-nums; }
+.score-big small { display: block; font-family: var(--mono); font-size: 11px; font-weight: 400; color: var(--muted); letter-spacing: .08em; text-transform: uppercase; }
+.hud-row { display: flex; justify-content: space-between; align-items: center; gap: 10px; font-family: var(--mono); font-size: 13px; color: var(--muted); flex-wrap: wrap; }
+.strikes { display: flex; gap: 6px; }
+.strikes i { width: 14px; height: 14px; border-radius: 50%; border: 2px solid var(--wrong); }
+.strikes i.hit { background: var(--wrong); }
+.streak { color: var(--right); font-weight: 600; }
+.done-score { margin: 0; font-family: var(--display); font-size: 48px; font-weight: 800; line-height: 1; }
+.done-score small { font-family: var(--body); font-size: 15px; font-weight: 500; color: var(--muted); margin-left: 8px; }
+.new-best { color: var(--gold); font-weight: 700; }
+.miss-list { display: flex; flex-direction: column; gap: 2px; font-size: 13px; color: var(--muted); max-height: 150px; overflow-y: auto; margin: 0; padding: 0; list-style: none; }
+.ladder-top { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.ladder-rank { font-family: var(--display); font-size: 48px; font-weight: 800; line-height: 1; }
+.ladder-bar .s { background: var(--gold); }
+#ladSpark { display: block; width: 100%; height: 56px; }
+.toast { position: absolute; left: 50%; top: 14px; transform: translateX(-50%); z-index: 2; background: var(--surface); border: 2px solid var(--right); color: var(--right);
+  font-weight: 700; font-size: 16px; padding: 8px 18px; border-radius: 999px; box-shadow: 0 6px 22px rgb(0 0 0 / .2); pointer-events: none; white-space: nowrap; animation: toastIn 2.2s ease-out forwards; }
+.toast.gold { border-color: var(--gold); color: var(--gold); }
+@keyframes toastIn { 0% { opacity: 0; transform: translate(-50%, -8px); } 10% { opacity: 1; transform: translate(-50%, 0); } 80% { opacity: 1; } 100% { opacity: 0; } }
+
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } .toast { animation: none; } }
+</style>
+
+<div class="wrap">
+  <header class="top">
+    <h1>Tsumego Dojo<span class="kanji">詰碁</span></h1>
+    <div class="keys" aria-label="Keyboard shortcuts">
+      <span><kbd>←</kbd><kbd>→</kbd>problems</span>
+      <span><kbd>R</kbd>retry</span>
+      <span><kbd>B</kbd>back</span>
+      <span><kbd>H</kbd>hint</span>
+      <span><kbd>A</kbd>solution</span>
+    </div>
+  </header>
+
+  <div class="app">
+    <div class="board-col">
+      <div class="goban-frame">
+        <svg id="board" viewBox="0 0 400 400" role="img" aria-label="Go board"></svg>
+        <div class="toast" id="toast" role="status" hidden></div>
+      </div>
+      <div class="board-caption">
+        <span id="posLabel">Problem –</span>
+        <span id="orientLabel"></span>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="tabs" role="tablist" aria-label="Mode">
+        <button type="button" role="tab" data-mode="practice" aria-selected="true">Practice</button>
+        <button type="button" role="tab" data-mode="rush" aria-selected="false">Rush</button>
+        <button type="button" role="tab" data-mode="ladder" aria-selected="false">Ladder</button>
+      </div>
+
+      <section class="block" id="rushBlock" aria-labelledby="rushHead" hidden>
+        <p class="eyebrow" id="rushHead">Tsumego Rush</p>
+        <div id="rushIntro" class="tally">
+          <p class="note">Solve as many as you can. Puzzles start at 30k and get one rank harder with every right answer. Three wrong moves and the run is over.</p>
+          <div class="rush-modes">
+            <button type="button" data-rush="m3"><b>3 min</b><span>Best <span id="best_m3">–</span></span></button>
+            <button type="button" data-rush="m5"><b>5 min</b><span>Best <span id="best_m5">–</span></span></button>
+            <button type="button" data-rush="surv"><b>Survival</b><span>Best <span id="best_surv">–</span></span></button>
+          </div>
+        </div>
+        <div id="rushHud" class="tally" hidden>
+          <div class="hud">
+            <div class="clock" id="rushClock">5:00</div>
+            <div class="score-big"><span id="rushScore">0</span><small>solved</small></div>
+          </div>
+          <div class="hud-row">
+            <span class="strikes" id="rushStrikes" aria-label="Wrong answers"></span>
+            <span class="streak" id="rushStreak"></span>
+            <span id="rushLevel"></span>
+          </div>
+          <button type="button" id="rushEnd">End run</button>
+        </div>
+        <div id="rushDone" class="tally" hidden>
+          <p class="done-score"><span id="doneScore">0</span><small id="doneLabel"></small></p>
+          <p class="note" id="doneBest"></p>
+          <ul class="miss-list" id="doneMisses"></ul>
+          <div class="lib-actions">
+            <button type="button" id="rushAgain" class="primary">Play again</button>
+            <button type="button" id="rushReview">Review misses</button>
+          </div>
+          <button type="button" id="rushModes">Change mode</button>
+        </div>
+      </section>
+
+      <section class="block" id="ladderBlock" aria-labelledby="ladHead" hidden>
+        <p class="eyebrow" id="ladHead">Your tsumego rank</p>
+        <div id="ladStart" class="tally">
+          <p class="note">Every puzzle moves your rank up or down. Puzzles are picked near your level, so you solve a bit more than half. Hints, the solution and skipping count as a miss.</p>
+          <label class="field" for="ladStartSel">Start me at
+            <select id="ladStartSel"></select>
+          </label>
+          <button type="button" id="ladGo" class="primary">Start the ladder</button>
+        </div>
+        <div id="ladMain" class="tally" hidden>
+          <div class="ladder-top">
+            <span class="ladder-rank" id="ladRank">–</span>
+            <span class="tally-nums" id="ladPeak"></span>
+          </div>
+          <div class="bar ladder-bar" aria-hidden="true"><span class="s" id="ladBar"></span></div>
+          <div class="tally-nums" id="ladNext"></div>
+          <svg id="ladSpark" viewBox="0 0 300 56" preserveAspectRatio="none" aria-hidden="true"></svg>
+          <div class="tally-nums" id="ladStats"></div>
+          <button type="button" id="ladReset">Start the ladder over</button>
+        </div>
+      </section>
+
+      <section class="block" aria-labelledby="probTitle">
+        <div class="prob-head">
+          <h2 class="prob-title" id="probTitle">Loading…</h2>
+          <span class="rank-chip" id="rankChip">–</span>
+        </div>
+        <div class="meta" id="meta"></div>
+        <div class="status" id="status" aria-live="polite"></div>
+        <p class="comment" id="comment"></p>
+        <div class="actions" id="actions">
+          <button id="retryBtn" type="button" class="retry" title="Start this problem again (R)">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 12a8.5 8.5 0 1 0 2.6-6.1"/><path d="M3.5 3.5v5h5"/></svg><span>Retry</span></button>
+          <button id="backBtn" type="button" title="Take back your last move (B)">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 5.5v13L8 12z"/><path d="M5.5 5.5v13"/></svg><span>Back a move</span></button>
+          <button id="hintBtn" type="button" title="Mark a correct next move; counts as a miss (H)">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 18h6"/><path d="M10 21.5h4"/><path d="M12 2.5a6.5 6.5 0 0 0-3.8 11.8c.5.4.8 1 .8 1.6V16h6v-.1c0-.6.3-1.2.8-1.6A6.5 6.5 0 0 0 12 2.5z"/></svg><span>Hint</span></button>
+          <button id="answerBtn" type="button" class="solution" title="Play out the correct line (A)">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.8l2.8 5.8 6.3.9-4.6 4.4 1.1 6.3L12 17.2l-5.6 3 1.1-6.3-4.6-4.4 6.3-.9z"/></svg><span>Solution</span></button>
+          <button id="nextBtn" type="button" class="primary" title="Next problem (→)">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12h15"/><path d="M13 6l6 6-6 6"/></svg><span>Next</span></button>
+        </div>
+      </section>
+
+      <section class="block" id="setBlock" aria-labelledby="setHead">
+        <p class="eyebrow" id="setHead">Practice set</p>
+        <div class="filters">
+          <label class="field" for="rankSel">Rank
+            <select id="rankSel"></select>
+          </label>
+          <label class="field" for="catSel">Category
+            <select id="catSel"></select>
+          </label>
+        </div>
+        <div class="toggles">
+          <label class="toggle" for="shuffleChk"><input type="checkbox" id="shuffleChk"> Shuffle order</label>
+          <label class="toggle" for="skipChk"><input type="checkbox" id="skipChk"> Skip problems I've solved</label>
+          <label class="toggle" for="orientChk"><input type="checkbox" id="orientChk"> Rotate and flip each problem</label>
+        </div>
+        <div class="tally">
+          <div class="bar" id="bar" aria-hidden="true"><span class="s"></span><span class="f"></span></div>
+          <div class="tally-nums" id="tallyNums"></div>
+        </div>
+        <button id="resetBtn" type="button">Clear progress for this set</button>
+      </section>
+
+      <section class="block" id="libBlock" aria-labelledby="libHead">
+        <p class="eyebrow" id="libHead">Library</p>
+        <p class="source" id="sourceLabel"></p>
+        <div class="lib-actions">
+          <button id="folderBtn" type="button">Open folder</button>
+          <button id="filesBtn" type="button">Open SGF files</button>
+          <button id="builtinBtn" type="button" style="grid-column: 1 / -1" hidden>Back to the built-in set</button>
+        </div>
+        <input type="file" id="folderInput" class="visually-hidden" webkitdirectory directory multiple tabindex="-1">
+        <input type="file" id="filesInput" class="visually-hidden" accept=".sgf" multiple tabindex="-1">
+        <p class="note">The built-in set is whatever you build into <code>data/</code> with <code>tools/build_data.py</code>. You can also open your own SGFs; folders named by rank (<code>12k</code>, <code>3d</code>…) set the rank. Your results are saved in this browser.</p>
+        <p class="error" id="libError" hidden></p>
+      </section>
+    </div>
+  </div>
+</div>
+
+<script>
+(() => {
+"use strict";
+
+/* ---------------- sample problems (original, for a working first view) ---------------- */
+const SAMPLES = [
+  { key: "sample/30k/take-the-stone", name: "Take the stone", rank: 0,
+    text: "(;GM[1]FF[4]SZ[19]PL[B]GN[Take the stone]DI[30k]AB[bc][cb][dc]AW[cc]C[Sample problem. Black to play. The white stone has one liberty left.];B[cd]C[RIGHT\nCaptured. The four black stones now form a ponnuki.])" },
+  { key: "sample/25k/two-eyes", name: "Two eyes in the corner", rank: 5,
+    text: "(;GM[1]FF[4]SZ[19]PL[B]GN[Two eyes in the corner]DI[25k]AB[ab][bb][cb][db][da]AW[ac][bc][cc][dc][ec][eb][ea]C[Sample problem. Black to play and live.](;B[ba]C[RIGHT\nThe middle point splits the space into two separate eyes. Black lives.])(;B[aa];W[ba]C[WRONG\nWhite takes the middle point. Black can only make one eye.])(;B[ca];W[ba]C[WRONG\nWhite takes the middle point. Black can only make one eye.]))" },
+  { key: "sample/20k/vital-point", name: "Straight three", rank: 10,
+    text: "(;GM[1]FF[4]SZ[19]PL[B]GN[Straight three]DI[20k]AW[ab][bb][cb][db][da]AB[ac][bc][cc][dc][ec][eb][ea]C[Sample problem. Black to play and kill.](;B[ba]C[RIGHT\nThe vital point of a straight three. White cannot make two eyes.])(;B[aa];W[ba]C[WRONG\nWhite plays the vital point, captures, and lives with two eyes.])(;B[ca];W[ba]C[WRONG\nWhite plays the vital point, captures, and lives with two eyes.]))" },
+];
+
+/* ---------------- storage ---------------- */
+const store = {
+  get(k, d) { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : d; } catch { return d; } },
+  set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} },
+};
+const progress = store.get("tsumego.progress", {});
+const saved = store.get("tsumego.settings", {});
+const reduceMotion = (() => { try { return matchMedia("(prefers-reduced-motion: reduce)").matches; } catch { return false; } })();
+
+/* ---------------- ranks ---------------- */
+const rankNum = (label) => {
+  const m = /^\s*(\d{1,2})\s*([kdp])\s*$/i.exec(label || "");
+  if (!m) return null;
+  const n = +m[1], k = m[2].toLowerCase();
+  return k === "k" ? 30 - n : k === "d" ? 29 + n : 38 + n;
+};
+const rankLabel = (n) => n == null ? "Unrated" : n < 30 ? `${30 - n}k` : n <= 38 ? `${n - 29}d` : `${n - 38}p`;
+
+/* ---------------- SGF ---------------- */
+function parseSGF(text) {
+  let i = 0; const n = text.length;
+  const stack = []; let cur = null, top = null;
+  while (i < n) {
+    const ch = text[i];
+    if (ch === "(") { stack.push(cur); i++; }
+    else if (ch === ")") { cur = stack.pop() ?? null; i++; if (!stack.length && top) break; }
+    else if (ch === ";") {
+      const node = { props: {}, children: [], parent: cur };
+      if (cur) cur.children.push(node); else if (!top) top = node;
+      cur = node; i++;
+    } else if (/[A-Za-z]/.test(ch)) {
+      let id = "";
+      while (i < n && /[A-Za-z]/.test(text[i])) { if (text[i] >= "A" && text[i] <= "Z") id += text[i]; i++; }
+      while (i < n && /\s/.test(text[i])) i++;
+      const vals = [];
+      while (i < n && text[i] === "[") {
+        i++; let v = "";
+        while (i < n && text[i] !== "]") {
+          if (text[i] === "\\") {
+            i++;
+            if (text[i] === "\r") { i++; if (text[i] === "\n") i++; continue; }
+            if (text[i] === "\n") { i++; continue; }
+          }
+          if (i < n) v += text[i];
+          i++;
+        }
+        i++; vals.push(v);
+        while (i < n && /\s/.test(text[i])) i++;
+      }
+      if (cur && id) (cur.props[id] ||= []).push(...vals);
+    } else i++;
+  }
+  if (!top) throw new Error("no game record found");
+  return top;
+}
+
+function buildPuzzle(text, item) {
+  const root = parseSGF(text);
+  const sz = ((root.props.SZ && root.props.SZ[0]) || "19").split(":");
+  const W = Math.min(25, +sz[0] || 19), H = Math.min(25, +(sz[1] || sz[0]) || 19);
+  let user = null;
+  const pl = root.props.PL && root.props.PL[0];
+  if (pl) user = /^b/i.test(pl) ? "B" : "W";
+  if (!user) { const c = root.children.find((c) => c.props.B || c.props.W); user = c && c.props.W ? "W" : "B"; }
+  const di = root.props.DI && rankNum(root.props.DI[0]);
+  let anyRight = false;
+  const memo = new Map();
+  const hasRight = (node) => {
+    if (memo.has(node)) return memo.get(node);
+    const r = isRight(node) || node.children.some(hasRight);
+    memo.set(node, r); return r;
+  };
+  anyRight = root.children.some(hasRight); // the opening note is never judged
+  return {
+    root, W, H, user, anyRight, hasRight,
+    // built-in puzzles are titled by rank and type ("5k Endgame"); the authors' own titles vary too much
+    title: item.chunk ? `${rankLabel(item.rank)}${item.cat ? " " + catLabel(item.cat) : ""}` : (root.props.GN && root.props.GN[0]) || item.name,
+    rank: item.rank != null ? item.rank : (di ?? null),
+    source: root.props.SO && root.props.SO[0],
+  };
+}
+
+const commentOf = (node) => (node.props.C && node.props.C.join("\n")) || "";
+const isRight = (node) => { const c = commentOf(node); return /\bRIGHT\b/.test(c) || /^\s*correct\b/i.test(c); };
+const isWrong = (node) => { const c = commentOf(node); return /\bWRONG\b/.test(c) || /^\s*(wrong|incorrect)\b/i.test(c); };
+const cleanComment = (c) => c.replace(/^\s*(RIGHT|WRONG)\s*/, "").trim();
+// The puzzle's opening note: drop the collection and OGS link lines, show the type as a readable name.
+const tidyRootComment = (c) => c
+  .replace(/^Collection:.*$/m, "")
+  .replace(/^https:\/\/online-go\.com\/puzzle\/\d+\s*$/m, "")
+  .replace(/^Type: *(\S*)\s*$/m, (_, t) => t ? `Type: ${catLabel(t === "tesujii" ? "tesuji" : t)}` : "")
+  .replace(/\n{3,}/g, "\n\n").trim();
+
+function expandPoints(vals, W, H) {
+  const out = [];
+  for (const v of vals || []) {
+    const [a, b] = v.split(":");
+    const p = toPt(a, W, H);
+    if (!p) continue;
+    if (b) {
+      const q = toPt(b, W, H); if (!q) continue;
+      for (let x = Math.min(p[0], q[0]); x <= Math.max(p[0], q[0]); x++)
+        for (let y = Math.min(p[1], q[1]); y <= Math.max(p[1], q[1]); y++) out.push([x, y]);
+    } else out.push(p);
+  }
+  return out;
+}
+function toPt(s, W, H) {
+  if (!s || s.length < 2) return null;
+  const x = s.charCodeAt(0) - 97, y = s.charCodeAt(1) - 97;
+  if (x < 0 || y < 0 || x >= W || y >= H) return null;
+  return [x, y];
+}
+function moveOf(node) {
+  const P = S.pz;
+  if (node.props.B) return { c: "B", p: toPt(node.props.B[0], P.W, P.H) };
+  if (node.props.W) return { c: "W", p: toPt(node.props.W[0], P.W, P.H) };
+  return null;
+}
+
+/* ---------------- state ---------------- */
+const S = {
+  lib: [], list: [], idx: 0, source: "samples",
+  rank: saved.rank ?? "all", cat: saved.cat ?? "all", shuffle: !!saved.shuffle, skip: !!saved.skip, orient: !!saved.orient,
+  pz: null, node: null, history: [], ticks: [], grid: null, status: "idle", msg: "", last: null, hint: null, wrongPt: null,
+  numbers: null, busy: false, gen: 0, recorded: false, hintUsed: false, T: { swap: false, fx: false, fy: false },
+  crop: null, error: "", mode: "practice", scored: false, delta: null, review: false,
+};
+
+const tf = ([x, y]) => {
+  const P = S.pz; let a = x, b = y;
+  if (S.T.swap) [a, b] = [b, a];
+  if (S.T.fx) a = P.W - 1 - a;
+  if (S.T.fy) b = P.H - 1 - b;
+  return [a, b];
+};
+
+/* ---------------- board rules ---------------- */
+const emptyGrid = (W, H) => Array.from({ length: H }, () => new Array(W).fill(0));
+function neighbors(x, y, W, H) {
+  const r = [];
+  if (x > 0) r.push([x - 1, y]); if (x < W - 1) r.push([x + 1, y]);
+  if (y > 0) r.push([x, y - 1]); if (y < H - 1) r.push([x, y + 1]);
+  return r;
+}
+function groupAt(g, x, y, W, H) {
+  const color = g[y][x], seen = new Set([y * W + x]), stones = [[x, y]]; let libs = 0; const libSeen = new Set();
+  for (let k = 0; k < stones.length; k++) {
+    const [sx, sy] = stones[k];
+    for (const [nx, ny] of neighbors(sx, sy, W, H)) {
+      const id = ny * W + nx;
+      if (g[ny][nx] === 0) { if (!libSeen.has(id)) { libSeen.add(id); libs++; } }
+      else if (g[ny][nx] === color && !seen.has(id)) { seen.add(id); stones.push([nx, ny]); }
+    }
+  }
+  return { stones, libs };
+}
+function place(x, y, c) {
+  const P = S.pz, g = S.grid, v = c === "B" ? 1 : 2, opp = 3 - v;
+  g[y][x] = v;
+  for (const [nx, ny] of neighbors(x, y, P.W, P.H)) {
+    if (g[ny][nx] === opp) {
+      const grp = groupAt(g, nx, ny, P.W, P.H);
+      if (grp.libs === 0) for (const [sx, sy] of grp.stones) g[sy][sx] = 0;
+    }
+  }
+  const own = groupAt(g, x, y, P.W, P.H);
+  if (own.libs === 0) for (const [sx, sy] of own.stones) g[sy][sx] = 0;
+}
+function applySetup(node) {
+  const P = S.pz;
+  for (const [k, v] of [["AB", 1], ["AW", 2], ["AE", 0]])
+    for (const p of expandPoints(node.props[k], P.W, P.H)) { const [x, y] = tf(p); S.grid[y][x] = v; }
+}
+function step(node) {
+  applySetup(node);
+  const m = moveOf(node);
+  S.node = node; S.hint = null;
+  if (m && m.p) {
+    const [x, y] = tf(m.p);
+    place(x, y, m.c);
+    S.last = [x, y];
+    if (S.numbers) S.numbers.set(`${x},${y}`, S.numbers.size + 1);
+  } else S.last = null;
+}
+function colorToPlay(node) {
+  const c = node.children.find((c) => c.props.B || c.props.W);
+  if (c) return c.props.B ? "B" : "W";
+  const m = moveOf(node);
+  return m ? (m.c === "B" ? "W" : "B") : S.pz.user;
+}
+const onMainLine = (node) => { for (let n = node; n.parent; n = n.parent) if (n.parent.children[0] !== n) return false; return true; };
+
+// Can the player still reach a RIGHT note after `node` is played? Worked out once per puzzle over
+// the whole tree, so replies, hints and the solution never steer into a branch with no way to win.
+function wins(node) {
+  const P = S.pz;
+  if (!P.anyRight) return onMainLine(node);
+  if (!P.win) {
+    P.win = new Map();
+    const keep = S.grid;
+    S.grid = emptyGrid(P.W, P.H);
+    for (const [k, v] of [["AB", 1], ["AW", 2], ["AE", 0]])
+      for (const [x, y] of expandPoints(P.root.props[k], P.W, P.H)) S.grid[y][x] = v;
+    const play = (n) => {
+      const g = S.grid.map((r) => r.slice());
+      for (const [k, v] of [["AB", 1], ["AW", 2], ["AE", 0]])
+        for (const [x, y] of expandPoints(n.props[k], P.W, P.H)) S.grid[y][x] = v;
+      const m = moveOf(n);
+      if (m && m.p) place(m.p[0], m.p[1], m.c);
+      const r = after(n);
+      S.grid = g;
+      P.win.set(n, r);
+      return r;
+    };
+    const after = (n) => isRight(n) || (!isWrong(n) && turn(n));
+    const turn = (n) => {
+      if (!n.children.length) return false;
+      const next = colorToPlay(n);
+      if (next !== P.user) {
+        let opts = n.children.filter((c) => { const m = moveOf(c); return m && m.c === next; });
+        if (!opts.length) opts = [n.children[0]];
+        return opts.map(play).some(Boolean);
+      }
+      return n.children.filter((c) => {
+        const m = moveOf(c);
+        return m && m.c === next && m.p && !S.grid[m.p[1]][m.p[0]];
+      }).map(play).some(Boolean);
+    };
+    P.win.set(P.root, turn(P.root)); // the opening note is never judged
+    S.grid = keep;
+  }
+  return !!P.win.get(node);
+}
+
+// Every position the author's tree reaches, keyed by the stones on the board and who just moved.
+// Lets a move that arrives at an author's position by a different move order count as that line.
+const posKey = (g, mover) => mover + g.map((r) => r.join("")).join("");
+function positionIndex() {
+  const P = S.pz;
+  if (P.pos) return P.pos;
+  P.pos = new Map();
+  const keep = S.grid;
+  const visit = (n, g) => {
+    for (const c of n.children) {
+      S.grid = g.map((r) => r.slice());
+      for (const [k, v] of [["AB", 1], ["AW", 2], ["AE", 0]])
+        for (const p of expandPoints(c.props[k], P.W, P.H)) { const [x, y] = tf(p); S.grid[y][x] = v; }
+      const m = moveOf(c);
+      if (m && m.p) { const [x, y] = tf(m.p); place(x, y, m.c); }
+      const after = S.grid;
+      if (m) {
+        const key = posKey(after, m.c);
+        (P.pos.get(key) || P.pos.set(key, []).get(key)).push(c);
+      }
+      visit(c, after);
+    }
+  };
+  S.grid = emptyGrid(P.W, P.H);
+  applySetup(P.root);
+  visit(P.root, S.grid);
+  S.grid = keep;
+  return P.pos;
+}
+// The author's node reached by playing (x, y) now, if the same position appears elsewhere in the tree.
+function transposition(x, y, color) {
+  const keep = S.grid;
+  S.grid = keep.map((r) => r.slice());
+  place(x, y, color);
+  const key = posKey(S.grid, color);
+  S.grid = keep;
+  const nodes = positionIndex().get(key);
+  if (!nodes) return null;
+  return nodes.find((n) => wins(n)) || nodes[0];
+}
+
+/* ---------------- crop ---------------- */
+function computeCrop() {
+  const P = S.pz;
+  const DW = P.W, DH = P.H;
+  let minx = DW, miny = DH, maxx = -1, maxy = -1;
+  const add = (p) => { if (!p) return; const [x, y] = tf(p); minx = Math.min(minx, x); maxx = Math.max(maxx, x); miny = Math.min(miny, y); maxy = Math.max(maxy, y); };
+  const walk = (node) => {
+    for (const k of ["AB", "AW", "B", "W", "TR", "SQ", "CR", "MA"]) for (const p of expandPoints(node.props[k], P.W, P.H)) add(p);
+    for (const v of node.props.LB || []) add(toPt(v.split(":")[0], P.W, P.H));
+    node.children.forEach(walk);
+  };
+  walk(P.root);
+  if (maxx < 0) { S.crop = { x0: 0, x1: DW - 1, y0: 0, y1: DH - 1 }; return; }
+  let x0 = minx - 1, x1 = maxx + 1, y0 = miny - 1, y1 = maxy + 1;
+  if (x0 <= 2) x0 = 0; if (y0 <= 2) y0 = 0;
+  if (x1 >= DW - 3) x1 = DW - 1; if (y1 >= DH - 3) y1 = DH - 1;
+  // Every puzzle gets a square window at least 9 lines across, so the zoom stays about the same from one to the next.
+  const MIN = Math.min(9, DW, DH);
+  const grow = (a, b, max, want) => {
+    while (b - a + 1 < want) {
+      if (b < max - 1 && (a === 0 || (b - a) % 2 === 0)) b++;
+      else if (a > 0) a--;
+      else if (b < max - 1) b++;
+      else break;
+    }
+    return [a, b];
+  };
+  x0 = Math.max(0, x0); x1 = Math.min(DW - 1, x1); y0 = Math.max(0, y0); y1 = Math.min(DH - 1, y1);
+  const want = Math.max(MIN, x1 - x0 + 1, y1 - y0 + 1);
+  [x0, x1] = grow(x0, x1, DW, want);
+  [y0, y1] = grow(y0, y1, DH, want);
+  S.crop = { x0, x1, y0, y1 };
+}
+
+/* ---------------- rendering ---------------- */
+const $ = (id) => document.getElementById(id);
+const svg = $("board");
+const CELL = 40, PAD_L = 34, PAD_B = 30, PAD_T = 12, PAD_R = 12;
+const COLS = "ABCDEFGHJKLMNOPQRSTUVWXYZ";
+const escXml = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+
+function geom() {
+  const { x0, x1, y0, y1 } = S.crop;
+  const nx = x1 - x0 + 1, ny = y1 - y0 + 1, n = Math.max(nx, ny);
+  // a board narrower than the window (e.g. 9x13) is centred in the square
+  const left = PAD_L + ((n - nx) * CELL) / 2, top = PAD_T + ((n - ny) * CELL) / 2;
+  return {
+    x0, x1, y0, y1, nx, ny, left, top, right: left + nx * CELL, bottom: top + ny * CELL,
+    px: (x) => left + (x - x0 + 0.5) * CELL,
+    py: (y) => top + (y - y0 + 0.5) * CELL,
+    w: PAD_L + n * CELL + PAD_R, h: PAD_T + n * CELL + PAD_B,
+  };
+}
+
+function hoshiPoints(W, H) {
+  if (W !== H) return [];
+  const s = W === 19 ? [3, 9, 15] : W === 13 ? [3, 6, 9] : W === 9 ? [2, 4, 6] : [];
+  const pts = []; for (const a of s) for (const b of s) pts.push([a, b]); return pts;
+}
+
+function marksOf(node) {
+  const P = S.pz, out = [];
+  const add = (k, type) => { for (const p of expandPoints(node.props[k], P.W, P.H)) out.push({ p: tf(p), type }); };
+  add("TR", "tr"); add("SQ", "sq"); add("CR", "cr"); add("MA", "ma");
+  for (const v of node.props.LB || []) {
+    const [a, ...rest] = v.split(":"); const p = toPt(a, P.W, P.H);
+    if (p) out.push({ p: tf(p), type: "lb", text: rest.join(":") });
+  }
+  return out;
+}
+
+function renderBoard() {
+  if (!S.pz || !S.crop) { svg.innerHTML = ""; return; }
+  const P = S.pz, G = geom();
+  svg.setAttribute("viewBox", `0 0 ${G.w} ${G.h}`);
+  const { left, right, top, bottom } = G;
+  let s = `<defs>
+    <radialGradient id="gB" cx="35%" cy="30%" r="70%"><stop offset="0" style="stop-color:var(--stone-b-hi)"/><stop offset="0.75" style="stop-color:var(--stone-b)"/></radialGradient>
+    <radialGradient id="gW" cx="35%" cy="30%" r="75%"><stop offset="0" style="stop-color:var(--stone-w-hi)"/><stop offset="0.85" style="stop-color:var(--stone-w)"/></radialGradient>
+    <linearGradient id="grain" x1="0" y1="0" x2="1" y2="0.15">
+      <stop offset="0" style="stop-color:var(--kaya)"/><stop offset="0.5" style="stop-color:var(--kaya-deep)" stop-opacity=".35"/><stop offset="1" style="stop-color:var(--kaya)"/>
+    </linearGradient>
+  </defs>`;
+  s += `<rect x="${left}" y="${top}" width="${right - left}" height="${bottom - top}" rx="4" style="fill:var(--kaya)"/>`;
+  s += `<rect x="${left}" y="${top}" width="${right - left}" height="${bottom - top}" rx="4" fill="url(#grain)" opacity=".55"/>`;
+  // grid lines
+  for (let x = G.x0; x <= G.x1; x++) {
+    const ya = G.y0 === 0 ? G.py(0) : top, yb = G.y1 === P.H - 1 ? G.py(P.H - 1) : bottom;
+    const edge = x === 0 || x === P.W - 1;
+    s += `<line x1="${G.px(x)}" y1="${ya}" x2="${G.px(x)}" y2="${yb}" style="stroke:var(--grid)" stroke-width="${edge ? 1.8 : 1}" stroke-linecap="square"/>`;
+  }
+  for (let y = G.y0; y <= G.y1; y++) {
+    const xa = G.x0 === 0 ? G.px(0) : left, xb = G.x1 === P.W - 1 ? G.px(P.W - 1) : right;
+    const edge = y === 0 || y === P.H - 1;
+    s += `<line x1="${xa}" y1="${G.py(y)}" x2="${xb}" y2="${G.py(y)}" style="stroke:var(--grid)" stroke-width="${edge ? 1.8 : 1}" stroke-linecap="square"/>`;
+  }
+  for (const [x, y] of hoshiPoints(P.W, P.H))
+    if (x >= G.x0 && x <= G.x1 && y >= G.y0 && y <= G.y1) s += `<circle cx="${G.px(x)}" cy="${G.py(y)}" r="3.6" style="fill:var(--grid)"/>`;
+  // coordinates (real board coordinates, I skipped)
+  for (let x = G.x0; x <= G.x1; x++) s += `<text x="${G.px(x)}" y="${bottom + 20}" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="13" style="fill:var(--muted)">${COLS[x] || ""}</text>`;
+  for (let y = G.y0; y <= G.y1; y++) s += `<text x="${left - 9}" y="${G.py(y) + 4.5}" text-anchor="end" font-family="IBM Plex Mono, monospace" font-size="13" style="fill:var(--muted)">${P.H - y}</text>`;
+
+  // stones
+  const r = CELL * 0.47;
+  for (let y = G.y0; y <= G.y1; y++) for (let x = G.x0; x <= G.x1; x++) {
+    const v = S.grid[y][x]; if (!v) continue;
+    const cx = G.px(x), cy = G.py(y);
+    s += `<circle cx="${cx + 1.4}" cy="${cy + 2}" r="${r}" fill="#000" opacity=".22"/>`;
+    s += `<circle cx="${cx}" cy="${cy}" r="${r}" fill="url(#${v === 1 ? "gB" : "gW"})" ${v === 2 ? 'style="stroke:var(--stone-b)" stroke-opacity=".25" stroke-width=".8"' : ""}/>`;
+  }
+  const markColor = (x, y) => S.grid[y] && S.grid[y][x] === 1 ? "var(--mark-dark)" : "var(--mark-light)";
+  const inView = ([x, y]) => x >= G.x0 && x <= G.x1 && y >= G.y0 && y <= G.y1;
+
+  // small green tick on the user's latest correct move
+  if (!S.numbers) for (const [x, y] of S.ticks) {
+    if (!inView([x, y]) || !S.grid[y][x]) continue;
+    const tx = G.px(x) + r * 0.72, ty = G.py(y) - r * 0.72;
+    s += `<circle cx="${tx}" cy="${ty}" r="7.5" style="fill:var(--right);stroke:var(--kaya)" stroke-width="1.5"/>`;
+    s += `<path d="M${tx - 3.4} ${ty + 0.2}l2.3 2.4 4.4-4.8" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>`;
+  }
+  // move numbers (answer mode) or last move marker
+  if (S.numbers) {
+    for (const [k, n] of S.numbers) {
+      const [x, y] = k.split(",").map(Number);
+      if (!inView([x, y]) || !S.grid[y][x]) continue;
+      s += `<text x="${G.px(x)}" y="${G.py(y) + 6}" text-anchor="middle" font-family="IBM Plex Sans, sans-serif" font-weight="600" font-size="17" style="fill:${markColor(x, y)}">${n}</text>`;
+    }
+  } else if (S.last && inView(S.last) && S.grid[S.last[1]][S.last[0]]) {
+    const [x, y] = S.last;
+    s += `<circle cx="${G.px(x)}" cy="${G.py(y)}" r="${CELL * 0.17}" fill="none" style="stroke:${markColor(x, y)}" stroke-width="2.2"/>`;
+  }
+  // SGF marks on the current node
+  if (S.node && !S.numbers) {
+    for (const m of marksOf(S.node)) {
+      if (!inView(m.p)) continue;
+      const [x, y] = m.p, cx = G.px(x), cy = G.py(y), col = markColor(x, y), k = CELL * 0.22;
+      if (m.type === "lb") {
+        if (!S.grid[y][x]) s += `<rect x="${cx - 11}" y="${cy - 11}" width="22" height="22" style="fill:var(--kaya)"/>`;
+        s += `<text x="${cx}" y="${cy + 6}" text-anchor="middle" font-family="IBM Plex Sans, sans-serif" font-weight="600" font-size="17" style="fill:${col}">${escXml(m.text)}</text>`;
+      } else if (m.type === "tr") s += `<polygon points="${cx},${cy - k * 1.15} ${cx + k},${cy + k * 0.7} ${cx - k},${cy + k * 0.7}" fill="none" style="stroke:${col}" stroke-width="2"/>`;
+      else if (m.type === "sq") s += `<rect x="${cx - k * 0.85}" y="${cy - k * 0.85}" width="${k * 1.7}" height="${k * 1.7}" fill="none" style="stroke:${col}" stroke-width="2"/>`;
+      else if (m.type === "cr") s += `<circle cx="${cx}" cy="${cy}" r="${k}" fill="none" style="stroke:${col}" stroke-width="2"/>`;
+      else if (m.type === "ma") s += `<path d="M${cx - k} ${cy - k}L${cx + k} ${cy + k}M${cx + k} ${cy - k}L${cx - k} ${cy + k}" style="stroke:${col}" stroke-width="2.2"/>`;
+    }
+  }
+  if (S.hint && inView(S.hint)) {
+    const [x, y] = S.hint;
+    s += `<circle cx="${G.px(x)}" cy="${G.py(y)}" r="${r * 0.82}" fill="none" style="stroke:var(--accent)" stroke-width="3" stroke-dasharray="5 4"/>`;
+  }
+  if (S.wrongPt && inView(S.wrongPt)) {
+    const [x, y] = S.wrongPt, cx = G.px(x), cy = G.py(y), k = CELL * 0.2;
+    s += `<path d="M${cx - k} ${cy - k}L${cx + k} ${cy + k}M${cx + k} ${cy - k}L${cx - k} ${cy + k}" style="stroke:var(--wrong)" stroke-width="3.2" stroke-linecap="round"/>`;
+  }
+  s += `<circle id="ghost" r="${r}" opacity="0" pointer-events="none"/>`;
+  svg.innerHTML = s;
+  svg.classList.toggle("playable", S.status === "playing" && !S.busy);
+}
+
+function renderPanel() {
+  const P = S.pz;
+  const item = S.list[S.idx];
+  const idle = S.mode === "rush" ? "Tsumego Rush" : S.mode === "ladder" ? "Rank ladder" : "No problems here";
+  $("probTitle").textContent = P ? P.title : (S.list.length ? "Loading…" : idle);
+  $("rankChip").textContent = P ? rankLabel(P.rank) : "–";
+  $("rankChip").hidden = !!(P && item && item.chunk);
+  const meta = $("meta"); meta.textContent = "";
+  if (P) {
+    const res = item && progress[item.key];
+    const tag = document.createElement("span");
+    tag.textContent = res === "solved" ? "Solved before" : res === "failed" ? "Missed before" : "New";
+    meta.append(tag);
+    if (item && item.cat && !item.chunk) { const c = document.createElement("span"); c.textContent = catLabel(item.cat); meta.append(c); }
+  }
+  const st = $("status"); st.className = "status"; st.textContent = "";
+  let comment = "";
+  if (S.error) {
+    st.classList.add("failed"); st.textContent = S.error;
+  } else if (P) {
+    if (S.status === "playing") {
+      const c = colorToPlay(S.node);
+      const dot = document.createElement("span"); dot.className = `dot ${c}`;
+      st.append(dot, document.createTextNode(S.busy ? "Opponent is answering…" : `${c === "B" ? "Black" : "White"} to play`));
+      if (S.hintUsed) { const p = document.createElement("span"); p.className = "pill"; p.textContent = "hint used"; st.append(p); }
+    } else {
+      st.classList.add(S.status);
+      const label = { solved: S.hintUsed ? "Solved with a hint" : "Solved", failed: "Missed", shown: "Answer shown", over: "Run over" }[S.status] || "";
+      st.append(document.createTextNode(label));
+      let pill = S.status === "solved" ? (S.hintUsed ? "not counted" : "+1") : S.status === "failed" ? "retry it" : S.status === "shown" ? "study" : "";
+      if (S.mode === "rush") pill = S.status === "solved" ? "+1" : S.status === "failed" ? "strike" : "";
+      if (S.mode === "ladder" && S.delta != null) pill = S.delta >= 0 ? `+${S.delta}` : `−${-S.delta}`;
+      if (pill) { const el = document.createElement("span"); el.className = "pill"; el.textContent = pill; st.append(el); }
+    }
+    comment = S.msg || cleanComment(commentOf(S.node));
+    if (S.node === P.root) comment = tidyRootComment(comment);
+  }
+  $("comment").textContent = comment;
+  // solving: Hint · Solution · Next   wrong: Retry · Back a move · Solution · Next
+  // solved: Retry · Solution · Next    solution shown: Retry · Next
+  const mode = P ? S.status : "none";
+  $("hintBtn").hidden = mode !== "playing";
+  $("retryBtn").hidden = !["failed", "solved", "shown"].includes(mode);
+  $("backBtn").hidden = mode !== "failed" || !S.history.length;
+  $("answerBtn").hidden = !P || mode === "shown";
+  $("hintBtn").disabled = S.busy;
+  $("hintBtn").classList.toggle("suggest", S.misses >= 2 && !S.hintUsed);
+  $("answerBtn").disabled = S.busy;
+  $("backBtn").disabled = S.busy;
+  $("nextBtn").disabled = !S.list.length;
+  $("actions").hidden = S.mode === "rush";
+  // on the ladder, leaving a problem you haven't finished counts as a miss
+  const skip = S.mode === "ladder" && P && !S.scored;
+  $("nextBtn").querySelector("span").textContent = skip ? "Skip" : "Next";
+  $("nextBtn").title = skip ? "Skip this problem; counts as a miss (→)" : "Next problem (→)";
+  $("hintBtn").title = S.mode === "ladder" ? "Mark a correct next move; counts as a miss on the ladder (H)" : "Mark a correct next move; counts as a miss (H)";
+  $("posLabel").textContent =
+    S.mode === "rush" ? (rush.on ? `Rush · ${rushLevelLabel()}` : "Rush")
+    : S.mode === "ladder" ? (ladder ? `Ladder · problem ${(ladder.games + (S.scored ? 0 : 1)).toLocaleString()}` : "Ladder")
+    : !S.list.length ? "No problems in this set"
+    : `${S.review ? "Rush misses · " : ""}Problem ${(S.idx + 1).toLocaleString()} of ${S.list.length.toLocaleString()}`;
+  $("orientLabel").textContent = S.orient && P ? "Rotated / flipped view" : "";
+}
+
+function renderTally() {
+  const items = S.lib.filter(inSet);
+  let s = 0, f = 0;
+  for (const it of items) { const v = progress[it.key]; if (v === "solved") s++; else if (v === "failed") f++; }
+  const t = items.length || 1;
+  const bar = $("bar").children;
+  bar[0].style.width = `${(s / t) * 100}%`;
+  bar[1].style.width = `${(f / t) * 100}%`;
+  $("tallyNums").innerHTML = `<span>Solved <b>${s.toLocaleString()}</b></span><span>Missed <b>${f.toLocaleString()}</b></span><span>Left <b>${(items.length - s - f).toLocaleString()}</b></span>`;
+}
+
+const CATS = ["life_and_death", "tesuji", "joseki", "fuseki", "endgame", "best_move", "elementary", "other"];
+const CAT_LABEL = { life_and_death: "Life or Death", tesuji: "Tesuji", joseki: "Joseki", fuseki: "Fuseki",
+  endgame: "Endgame", best_move: "Best move", elementary: "Elementary", other: "Other" };
+const catLabel = (c) => CAT_LABEL[c] || c.replace(/_/g, " ");
+
+// Each menu's counts reflect the other menu's choice, e.g. Endgame shows how many are at the chosen rank.
+function renderSelects() {
+  const ranks = new Set(), cats = new Set();
+  for (const it of S.lib) { ranks.add(rankKey(it)); if (it.cat) cats.add(it.cat); }
+  if (S.rank !== "all" && !ranks.has(String(S.rank))) S.rank = "all";
+  if (S.cat !== "all" && !cats.has(S.cat)) S.cat = "all";
+  const rc = new Map(), cc = new Map(); let rAll = 0, cAll = 0;
+  for (const it of S.lib) {
+    if (catOk(it)) { rAll++; rc.set(rankKey(it), (rc.get(rankKey(it)) || 0) + 1); }
+    if (rankOk(it)) { cAll++; if (it.cat) cc.set(it.cat, (cc.get(it.cat) || 0) + 1); }
+  }
+  const opt = (v, label, n, cur) => `<option value="${escXml(v)}"${n || v === cur ? "" : " disabled"}>${escXml(label)} · ${n.toLocaleString()}</option>`;
+  const rkeys = [...ranks].sort((a, b) => (a === "none") - (b === "none") || (+a) - (+b));
+  $("rankSel").innerHTML = [`<option value="all">All ranks · ${rAll.toLocaleString()}</option>`,
+    ...rkeys.map((k) => opt(k, k === "none" ? "Unrated" : rankLabel(+k), rc.get(k) || 0, String(S.rank)))].join("");
+  $("rankSel").value = String(S.rank);
+  const ckeys = [...cats].sort((a, b) => ((CATS.indexOf(a) + 1) || 99) - ((CATS.indexOf(b) + 1) || 99) || a.localeCompare(b));
+  $("catSel").innerHTML = [`<option value="all">All categories · ${cAll.toLocaleString()}</option>`,
+    ...ckeys.map((k) => opt(k, catLabel(k), cc.get(k) || 0, S.cat))].join("");
+  $("catSel").value = S.cat;
+  $("catSel").disabled = !cats.size;
+}
+
+function render() { renderBoard(); renderPanel(); if (S.mode === "rush") renderRush(); else if (S.mode === "ladder") renderLadder(); }
+
+/* ---------------- set building ---------------- */
+const rankKey = (it) => it.rank == null ? "none" : String(it.rank);
+const rankOk = (it) => S.rank === "all" || rankKey(it) === String(S.rank);
+const catOk = (it) => S.cat === "all" || it.cat === S.cat;
+const inSet = (it) => rankOk(it) && catOk(it);
+function buildList(keepKey) {
+  S.review = false;
+  let list = S.lib.filter(inSet);
+  if (S.skip) list = list.filter((it) => progress[it.key] !== "solved" || it.key === keepKey);
+  if (S.shuffle) {
+    list = list.slice();
+    for (let i = list.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [list[i], list[j]] = [list[j], list[i]]; }
+  }
+  S.list = list;
+  const k = keepKey ? list.findIndex((it) => it.key === keepKey) : -1;
+  S.idx = k >= 0 ? k : 0;
+}
+
+function saveSettings() { store.set("tsumego.settings", { rank: S.rank, cat: S.cat, shuffle: S.shuffle, skip: S.skip, orient: S.orient, mode: S.mode }); }
+
+/* ---------------- play flow ---------------- */
+async function openAt(i) {
+  S.error = ""; S.msg = "";
+  if (!S.list.length) { S.pz = null; S.crop = null; render(); return; }
+  S.idx = ((i % S.list.length) + S.list.length) % S.list.length;
+  const item = S.list[S.idx];
+  const g = ++S.gen;
+  let text;
+  try {
+    if (item.text != null) text = item.text;
+    else if (item.file) text = await item.file.text();
+    else {
+      text = (await loadChunk(item.chunk)).get(item.id);
+      if (text == null) throw new Error("missing");
+    }
+  }
+  catch {
+    if (g === S.gen) {
+      S.pz = null;
+      S.error = item.chunk ? "Couldn't load this problem. Check your connection and press Retry." : "Couldn't read that file. Open the folder again.";
+      render();
+    }
+    return;
+  }
+  const nx = S.list[(S.idx + 1) % S.list.length];
+  if (nx && nx.chunk) loadChunk(nx.chunk).catch(() => {});
+  if (g !== S.gen) return;
+  try { S.pz = buildPuzzle(text, item); }
+  catch (e) { S.pz = null; S.crop = null; S.error = `This SGF couldn't be read (${e.message}). Press Next to skip it.`; render(); return; }
+  const sq = S.pz.W === S.pz.H;
+  S.T = S.orient ? { swap: sq && Math.random() < 0.5, fx: Math.random() < 0.5, fy: Math.random() < 0.5 } : { swap: false, fx: false, fy: false };
+  S.recorded = false; S.hintUsed = false; S.misses = 0; S.scored = false; S.delta = null;
+  computeCrop();
+  reset();
+}
+
+function reset() {
+  if (!S.pz) return;
+  S.gen++;
+  S.grid = emptyGrid(S.pz.W, S.pz.H);
+  S.node = S.pz.root; S.numbers = null; S.busy = false;
+  applySetup(S.pz.root);
+  S.status = "playing"; S.last = null; S.hint = null; S.wrongPt = null; S.msg = ""; S.history = []; S.ticks = [];
+  render();
+}
+
+function record(result) {
+  if (S.recorded) return;
+  S.recorded = true;
+  const item = S.list[S.idx]; if (!item) return;
+  progress[item.key] = result;
+  store.set("tsumego.progress", progress);
+  renderTally();
+}
+
+// Glow around the board: "flash" (green, solved) or "flash-wrong" (red, missed).
+function flashBoard(cls) {
+  const f = document.querySelector(".goban-frame");
+  f.classList.remove("flash", "flash-wrong"); void f.offsetWidth; f.classList.add(cls);
+}
+
+function finish(st, msg) {
+  S.status = st; S.busy = false;
+  if (st === "failed") { S.misses = (S.misses || 0) + 1; flashBoard("flash-wrong"); }
+  if (msg) S.msg = msg;
+  if (st === "solved") { record(S.hintUsed ? "failed" : "solved"); flashBoard("flash"); }
+  else if (st === "failed") record("failed");
+  if (S.mode === "rush") rushResult(st === "solved");
+  else if (S.mode === "ladder") ladderResult(st === "solved" && !S.hintUsed);
+  render();
+}
+
+function opponentReply(node, then) {
+  const next = colorToPlay(node);
+  const opts = node.children.filter((c) => { const m = moveOf(c); return m && m.c === next; });
+  // after a good move, only pick replies the player can still beat (some authors leave a reply unanswered)
+  const good = wins(node) ? opts.filter(wins) : [];
+  const pool = good.length ? good : opts;
+  const pick = pool.length ? pool[Math.floor(Math.random() * pool.length)] : node.children[0];
+  S.busy = true; render();
+  const g = S.gen;
+  setTimeout(() => {
+    if (g !== S.gen) return;
+    S.busy = false;
+    step(pick);
+    then(pick);
+  }, reduceMotion ? 80 : 380);
+}
+
+function evaluate(node, byUser) {
+  const P = S.pz;
+  if (isRight(node)) return finish("solved");
+  if (isWrong(node)) {
+    if (byUser && node.children.length) return opponentReply(node, () => finish("failed"));
+    return finish("failed");
+  }
+  if (!node.children.length) {
+    if (!P.anyRight && onMainLine(node)) return finish("solved");
+    return finish("failed");
+  }
+  if (colorToPlay(node) !== P.user) return opponentReply(node, (n) => evaluate(n, false));
+  render();
+}
+
+function userPlay(x, y) {
+  if (!S.pz || S.status !== "playing" || S.busy) return;
+  if (S.grid[y][x]) return;
+  S.history.push({ grid: S.grid.map((r) => r.slice()), node: S.node, last: S.last, ticks: S.ticks.slice() });
+  S.ticks = []; // the tick only marks your latest correct move
+  const uc = colorToPlay(S.node);
+  const match = S.node.children.find((c) => {
+    const m = moveOf(c); if (!m || m.c !== uc || !m.p) return false;
+    const [a, b] = tf(m.p); return a === x && b === y;
+  });
+  const alt = !match && transposition(x, y, uc);
+  if (alt) {
+    place(x, y, uc);
+    applySetup(alt);
+    S.node = alt; S.last = [x, y]; S.hint = null;
+    if (wins(alt)) S.ticks.push([x, y]);
+    return evaluate(alt, true);
+  }
+  if (!match) {
+    place(x, y, uc);
+    S.wrongPt = [x, y]; S.last = null;
+    return finish("failed", S.mode === "rush" ? "Not the answer." : "That move isn't in the solution. Go back a move, retry, or see the solution.");
+  }
+  step(match);
+  if (wins(match)) S.ticks.push([x, y]);
+  evaluate(match, true);
+}
+
+// Undo the user's last move (and the reply to it) and keep solving from there.
+function backMove() {
+  if (!S.pz || S.busy || !S.history.length) return;
+  const h = S.history.pop();
+  S.gen++;
+  S.grid = h.grid; S.node = h.node; S.last = h.last; S.ticks = h.ticks;
+  S.status = "playing"; S.hint = null; S.wrongPt = null; S.msg = ""; S.numbers = null;
+  render();
+}
+
+function showHint() {
+  if (!S.pz || S.status !== "playing" || S.busy || S.mode === "rush") return;
+  const P = S.pz, uc = colorToPlay(S.node);
+  let cands = S.node.children.filter((c) => { const m = moveOf(c); return m && m.c === uc && m.p && wins(c); });
+  if (!cands.length && !P.anyRight) cands = S.node.children.slice(0, 1).filter((c) => moveOf(c) && moveOf(c).p);
+  if (!cands.length) { S.msg = "No marked correct move from here. Retry from the start."; render(); return; }
+  S.hint = tf(moveOf(cands[0]).p);
+  S.hintUsed = true;
+  render();
+}
+
+function showAnswer() {
+  if (!S.pz || S.mode === "rush") return;
+  const P = S.pz;
+  if (S.mode === "ladder") ladderResult(false);
+  reset();
+  S.numbers = new Map(); S.status = "shown"; S.busy = true;
+  record("failed");
+  const path = [];
+  let n = P.root;
+  while (n.children.length) {
+    let nx = n.children.find((c) => wins(c));
+    if (!nx) { if (P.anyRight) break; nx = n.children[0]; }
+    path.push(nx); n = nx;
+    if (isRight(nx)) break;
+  }
+  const g = S.gen;
+  if (!path.length) { S.busy = false; S.msg = "This problem has no marked solution."; render(); return; }
+  let k = 0;
+  const tick = () => {
+    if (g !== S.gen) return;
+    step(path[k++]);
+    if (k >= path.length) { S.busy = false; S.msg = cleanComment(commentOf(path[path.length - 1])) || "That's the full correct line."; render(); return; }
+    render();
+    setTimeout(tick, reduceMotion ? 60 : 560);
+  };
+  render();
+  setTimeout(tick, reduceMotion ? 0 : 250);
+}
+
+/* ---------------- board input ---------------- */
+function eventPoint(ev) {
+  if (!S.crop) return null;
+  const pt = svg.createSVGPoint(); pt.x = ev.clientX; pt.y = ev.clientY;
+  const ctm = svg.getScreenCTM(); if (!ctm) return null;
+  const p = pt.matrixTransform(ctm.inverse());
+  const G = geom();
+  const x = Math.round((p.x - G.left) / CELL - 0.5) + G.x0;
+  const y = Math.round((p.y - G.top) / CELL - 0.5) + G.y0;
+  if (x < G.x0 || x > G.x1 || y < G.y0 || y > G.y1) return null;
+  if (Math.hypot(p.x - G.px(x), p.y - G.py(y)) > CELL * 0.55) return null;
+  return [x, y];
+}
+svg.addEventListener("click", (ev) => { const p = eventPoint(ev); if (p) userPlay(p[0], p[1]); });
+svg.addEventListener("pointermove", (ev) => {
+  const ghost = svg.querySelector("#ghost"); if (!ghost) return;
+  if (ev.pointerType !== "mouse") return;
+  const p = eventPoint(ev);
+  if (!p || S.status !== "playing" || S.busy || S.grid[p[1]][p[0]]) { ghost.setAttribute("opacity", "0"); return; }
+  const G = geom(), c = colorToPlay(S.node);
+  ghost.setAttribute("cx", G.px(p[0])); ghost.setAttribute("cy", G.py(p[1]));
+  ghost.setAttribute("fill", `url(#${c === "B" ? "gB" : "gW"})`);
+  ghost.setAttribute("opacity", ".45");
+});
+svg.addEventListener("pointerleave", () => { const g = svg.querySelector("#ghost"); if (g) g.setAttribute("opacity", "0"); });
+
+/* ---------------- controls ---------------- */
+$("retryBtn").onclick = () => { if (S.mode !== "rush") reset(); };
+$("hintBtn").onclick = showHint;
+$("answerBtn").onclick = showAnswer;
+$("nextBtn").onclick = () => advance(1);
+$("backBtn").onclick = backMove;
+
+function advance(d) {
+  if (S.mode === "rush") return;
+  if (S.mode === "ladder") {
+    if (d < 0 || !ladder) return;
+    if (S.pz && !S.scored) ladderResult(false);
+    return nextLadder();
+  }
+  if (!S.list.length) return;
+  const cur = S.list[S.idx];
+  if (S.skip && d > 0 && cur && progress[cur.key] === "solved") {
+    // drop the problem just solved from the skip-solved set, stay at the same index
+    S.list.splice(S.idx, 1);
+    return openAt(S.idx);
+  }
+  openAt(S.idx + d);
+}
+
+$("rankSel").onchange = (e) => { S.rank = e.target.value; saveSettings(); renderSelects(); buildList(); renderTally(); openAt(0); };
+$("catSel").onchange = (e) => { S.cat = e.target.value; saveSettings(); renderSelects(); buildList(); renderTally(); openAt(0); };
+$("shuffleChk").onchange = (e) => { S.shuffle = e.target.checked; saveSettings(); const k = S.list[S.idx]?.key; buildList(k); openAt(S.idx); };
+$("skipChk").onchange = (e) => { S.skip = e.target.checked; saveSettings(); const k = S.list[S.idx]?.key; buildList(k); openAt(S.idx); };
+$("orientChk").onchange = (e) => { S.orient = e.target.checked; saveSettings(); openAt(S.idx); };
+
+let resetArmed = null;
+$("resetBtn").onclick = () => {
+  const btn = $("resetBtn");
+  if (!resetArmed) {
+    btn.textContent = "Click again to clear"; btn.classList.add("danger-armed");
+    resetArmed = setTimeout(() => { resetArmed = null; btn.textContent = "Clear progress for this set"; btn.classList.remove("danger-armed"); }, 3500);
+    return;
+  }
+  clearTimeout(resetArmed); resetArmed = null;
+  for (const it of S.lib) if (inSet(it)) delete progress[it.key];
+  store.set("tsumego.progress", progress);
+  btn.textContent = "Progress cleared"; btn.classList.remove("danger-armed");
+  setTimeout(() => { btn.textContent = "Clear progress for this set"; }, 1800);
+  buildList(S.list[S.idx]?.key); renderTally(); render();
+};
+
+document.addEventListener("keydown", (e) => {
+  if (e.target.closest("select, input, textarea") || e.metaKey || e.ctrlKey || e.altKey) return;
+  const k = e.key.toLowerCase();
+  if (S.mode === "rush") return;
+  if (k === "arrowright") { advance(1); e.preventDefault(); }
+  else if (k === "arrowleft") { advance(-1); e.preventDefault(); }
+  else if (k === "r") reset();  // replaying a finished problem never changes your rank
+  else if (k === "b") backMove();
+  else if (k === "h") showHint();
+  else if (k === "a") showAnswer();
+});
+
+/* ---------------- library loading ---------------- */
+$("folderBtn").onclick = () => $("folderInput").click();
+$("filesBtn").onclick = () => $("filesInput").click();
+$("folderInput").onchange = (e) => loadFiles(e.target.files, "folder");
+$("filesInput").onchange = (e) => loadFiles(e.target.files, "files");
+
+function loadFiles(fileList, kind) {
+  const err = $("libError"); err.hidden = true;
+  const items = [];
+  for (const f of fileList) {
+    if (!/\.sgf$/i.test(f.name)) continue;
+    const path = f.webkitRelativePath || f.name;
+    const parts = path.split("/");
+    let rank = null;
+    for (let i = parts.length - 2; i >= 0; i--) { const r = rankNum(parts[i]); if (r != null) { rank = r; break; } }
+    const idm = /(\d+)\.sgf$/i.exec(f.name);
+    items.push({ key: "file/" + path, name: f.name.replace(/\.sgf$/i, ""), rank, file: f, order: idm ? +idm[1] : 0, path });
+  }
+  if (!items.length) {
+    err.textContent = kind === "folder" ? "No .sgf files in that folder. Choose a folder of .sgf problems." : "None of those were .sgf files.";
+    err.hidden = false; return;
+  }
+  items.sort((a, b) => ((a.rank ?? 99) - (b.rank ?? 99)) || (a.order - b.order) || a.path.localeCompare(b.path));
+  S.lib = items; S.source = kind;
+  $("builtinBtn").hidden = !builtin;
+  $("sourceLabel").innerHTML = `<b>${items.length.toLocaleString()}</b> problems from your ${kind === "folder" ? "folder" : "files"}`;
+  renderSelects(); buildList(); renderTally(); openAt(0);
+}
+
+/* ---------------- built-in set ---------------- */
+// data/index.json lists ranks and their chunk files; each chunk is a gzipped
+// JSON array of [ogsId, sgfText], fetched the first time one of its problems opens.
+const chunkCache = new Map();
+function loadChunk(file) {
+  if (!chunkCache.has(file)) {
+    const p = fetch(file)
+      .then((r) => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.arrayBuffer(); })
+      .then(async (buf) => {
+        const b = new Uint8Array(buf);
+        let text;
+        if (b[0] === 0x1f && b[1] === 0x8b) {
+          const ds = new Blob([b]).stream().pipeThrough(new DecompressionStream("gzip"));
+          text = await new Response(ds).text();
+        } else text = new TextDecoder().decode(b);
+        return new Map(JSON.parse(text));
+      });
+    p.catch(() => chunkCache.delete(file));
+    chunkCache.set(file, p);
+  }
+  return chunkCache.get(file);
+}
+
+let builtin = null, builtinLoading = null;
+// one shared fetch, however many modes ask for the puzzles at once
+const ensureBuiltin = () => builtinLoading ||= fetchBuiltin().catch((e) => { builtinLoading = null; throw e; });
+async function fetchBuiltin() {
+  if (!builtin) {
+    const r = await fetch("data/index.json");
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    const idx = await r.json();
+    builtin = [];
+    // keys match a folder load of sgf/<rank>/<id>.sgf, so progress carries over either way
+    const types = idx.types || [];
+    for (const rk of idx.ranks) for (const c of rk.chunks) c.ids.forEach((id, k) =>
+      builtin.push({ key: `file/sgf/${rk.rank}/${id}.sgf`, name: `Puzzle ${id}`, rank: rk.n, chunk: c.file, id,
+        cat: c.t ? types[c.t[k]] : undefined }));
+  }
+  return builtin;
+}
+async function loadBuiltin() {
+  await ensureBuiltin();
+  S.lib = builtin; S.source = "builtin";
+  $("sourceLabel").innerHTML = `<b>${builtin.length.toLocaleString()}</b> puzzles built in`;
+  $("builtinBtn").hidden = true; $("libError").hidden = true;
+  renderSelects();
+  if (S.mode !== "practice") return; // Rush or the ladder already owns the board
+  buildList(); renderTally(); openAt(0);
+}
+$("builtinBtn").onclick = () => loadBuiltin().catch(() => {});
+
+/* ---------------- modes ---------------- */
+function toast(text, kind) {
+  const t = $("toast");
+  t.hidden = true; void t.offsetWidth;
+  t.textContent = text; t.className = `toast${kind ? " " + kind : ""}`; t.hidden = false;
+  clearTimeout(toast.timer); toast.timer = setTimeout(() => { t.hidden = true; }, 2300);
+}
+
+// Leaving the board empty between runs; bumping gen cancels any pending opponent reply.
+function clearBoard() { S.gen++; S.pz = null; S.crop = null; S.list = []; S.idx = 0; S.error = ""; S.msg = ""; S.status = "idle"; render(); }
+
+function setMode(m, reviewList) {
+  if (S.mode === "practice" && m !== "practice" && !S.review) S.practiceKey = S.list[S.idx]?.key;
+  if (S.mode === "rush" && m !== "rush" && rush.on) stopRush();
+  S.mode = m; saveSettings();
+  for (const b of document.querySelectorAll(".tabs button")) b.setAttribute("aria-selected", String(b.dataset.mode === m));
+  $("setBlock").hidden = $("libBlock").hidden = m !== "practice";
+  $("rushBlock").hidden = m !== "rush";
+  $("ladderBlock").hidden = m !== "ladder";
+  if (m === "practice") {
+    if (reviewList) { S.list = reviewList; S.idx = 0; S.review = true; renderTally(); return openAt(0); }
+    renderSelects(); buildList(S.practiceKey); renderTally(); return openAt(S.idx);
+  }
+  if (m === "rush") { rush.ended = false; return clearBoard(); }
+  if (ladder) return nextLadder();
+  clearBoard();
+}
+for (const b of document.querySelectorAll(".tabs button")) b.onclick = () => { if (b.dataset.mode !== S.mode) setMode(b.dataset.mode); };
+
+/* ---- Tsumego Rush: 3 min, 5 min or survival; three strikes; one rank harder per right answer ---- */
+const RUSH_MODES = { m3: { label: "3 min", secs: 180 }, m5: { label: "5 min", secs: 300 }, surv: { label: "Survival", secs: 0 } };
+const rushStats = store.get("tsumego.rush", { best: {}, runs: 0 });
+const rush = { on: false, ended: false };
+let rushIdx = null;
+async function ensureRush() {
+  if (!rushIdx) {
+    const r = await fetch("data/rush/index.json");
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    rushIdx = await r.json();
+    rushIdx.ranks.sort((a, b) => a.n - b.n);
+  }
+  return rushIdx;
+}
+const rushLevel = () => rushIdx.ranks[Math.min(rush.level, rushIdx.ranks.length - 1)];
+const rushLevelLabel = () => rushIdx ? rankLabel(rushLevel().n) : "";
+
+async function startRush(mode) {
+  try { await ensureRush(); } catch { toast("Couldn't load the Rush puzzles"); return; }
+  if (S.mode !== "rush") return;
+  Object.assign(rush, { on: true, ended: false, mode, score: 0, strikes: 0, streak: 0, bestStreak: 0, level: 0,
+    used: new Set(), missed: [], token: (rush.token || 0) + 1, newBest: false });
+  const secs = RUSH_MODES[mode].secs;
+  rush.ends = secs ? performance.now() + secs * 1000 : 0;
+  clearInterval(rush.timer);
+  if (secs) rush.timer = setInterval(() => { if (rush.on && performance.now() >= rush.ends) endRush(); else renderRush(); }, 250);
+  rushNext();
+}
+
+function rushNext() {
+  if (!rush.on) return;
+  const rk = rushLevel();
+  let k = -1;
+  for (let tries = 0; tries < 40; tries++) { const j = Math.floor(Math.random() * rk.ids.length); if (!rush.used.has(rk.ids[j])) { k = j; break; } }
+  if (k < 0) k = Math.floor(Math.random() * rk.ids.length);
+  const id = rk.ids[k]; rush.used.add(id);
+  S.list = [{ key: `file/sgf/${rk.rank}/${id}.sgf`, name: `Puzzle ${id}`, rank: rk.n, chunk: rk.file, id, cat: rushIdx.types[rk.t[k]] }];
+  S.idx = 0;
+  const up = rushIdx.ranks[Math.min(rush.level + 1, rushIdx.ranks.length - 1)];
+  loadChunk(up.file).catch(() => {});
+  openAt(0);
+}
+
+function rushResult(ok) {
+  if (!rush.on || S.scored) return;
+  S.scored = true;
+  const tok = rush.token;
+  if (ok) {
+    rush.score++; rush.streak++; rush.bestStreak = Math.max(rush.bestStreak, rush.streak); rush.level++;
+    if (rush.streak > 0 && rush.streak % 5 === 0) toast(`${rush.streak} in a row!`);
+  } else {
+    rush.strikes++; rush.streak = 0; rush.missed.push(S.list[S.idx]);
+  }
+  setTimeout(() => {
+    if (!rush.on || rush.token !== tok) return;
+    if (rush.strikes >= 3) endRush(); else rushNext();
+  }, ok ? 550 : 1100);
+}
+
+function stopRush() { rush.on = false; rush.token++; clearInterval(rush.timer); }
+
+function endRush() {
+  if (!rush.on) return;
+  stopRush();
+  rush.ended = true;
+  const prev = rushStats.best[rush.mode];
+  rush.prevBest = prev;
+  rush.newBest = rush.score > 0 && (prev == null || rush.score > prev);
+  if (rush.newBest) rushStats.best[rush.mode] = rush.score;
+  rushStats.runs = (rushStats.runs || 0) + 1;
+  store.set("tsumego.rush", rushStats);
+  S.gen++; S.busy = false;
+  if (S.pz) S.status = "over";
+  render();
+  if (rush.newBest) toast("New best!", "gold");
+}
+
+function renderRush() {
+  const on = rush.on, done = !on && rush.ended;
+  $("rushIntro").hidden = on || done; $("rushHud").hidden = !on; $("rushDone").hidden = !done;
+  for (const k of Object.keys(RUSH_MODES)) $("best_" + k).textContent = rushStats.best[k] != null ? rushStats.best[k] : "–";
+  if (on) {
+    const clock = $("rushClock");
+    if (rush.ends) {
+      const left = Math.max(0, Math.ceil((rush.ends - performance.now()) / 1000));
+      clock.textContent = `${Math.floor(left / 60)}:${String(left % 60).padStart(2, "0")}`;
+      clock.classList.toggle("low", left <= 30);
+    } else { clock.textContent = "Survival"; clock.classList.remove("low"); }
+    $("rushScore").textContent = rush.score;
+    $("rushStrikes").innerHTML = [0, 1, 2].map((i) => `<i class="${i < rush.strikes ? "hit" : ""}"></i>`).join("");
+    $("rushStrikes").setAttribute("aria-label", `${rush.strikes} of 3 wrong`);
+    $("rushStreak").textContent = rush.streak >= 2 ? `×${rush.streak} streak` : "";
+    $("rushLevel").textContent = `Level ${rushLevelLabel()}`;
+    // the same at a glance under the board, for phones where the panel is below it
+    $("posLabel").textContent = `${rush.ends ? clock.textContent + " · " : ""}${rush.score} solved · ${"✕".repeat(rush.strikes)}${"○".repeat(3 - rush.strikes)} · Level ${rushLevelLabel()}`;
+  }
+  if (done) {
+    $("doneScore").textContent = rush.score;
+    $("doneLabel").textContent = `solved · ${RUSH_MODES[rush.mode].label}`;
+    const reached = rush.level > 0 ? rankLabel(rushIdx.ranks[Math.min(rush.level, rushIdx.ranks.length) - 1].n) : null;
+    const bits = [];
+    if (rush.newBest) bits.push(`<span class="new-best">New best!</span>${rush.prevBest != null ? ` Previous best ${rush.prevBest}.` : ""}`);
+    else bits.push(`Best ${rushStats.best[rush.mode] ?? 0}.`);
+    if (reached) bits.push(`Reached ${reached}.`);
+    if (rush.bestStreak >= 2) bits.push(`Longest streak ${rush.bestStreak}.`);
+    $("doneBest").innerHTML = bits.join(" ");
+    $("doneMisses").innerHTML = rush.missed.length
+      ? rush.missed.map((it) => `<li>✕ ${escXml(rankLabel(it.rank))} ${escXml(catLabel(it.cat))}</li>`).join("")
+      : "<li>No misses.</li>";
+    $("rushReview").disabled = !rush.missed.length;
+  }
+}
+for (const b of document.querySelectorAll("[data-rush]")) b.onclick = () => startRush(b.dataset.rush);
+$("rushEnd").onclick = endRush;
+$("rushAgain").onclick = () => startRush(rush.mode);
+$("rushModes").onclick = () => { rush.ended = false; clearBoard(); };
+$("rushReview").onclick = () => { if (rush.missed.length) setMode("practice", rush.missed.slice()); };
+
+/* ---- Rank ladder: an Elo-style rating shown as a Go rank. 100 points per rank; a puzzle at rank n is
+   rated n·100+50, so you score about 50% on puzzles at your own rank. ---- */
+let ladder = store.get("tsumego.ladder", null);
+const LADDER_CATS = (c) => c !== "joseki" && c !== "fuseki";
+const MAX_R = 38 * 100 + 99;
+const ladRankOf = (r) => Math.max(0, Math.min(38, Math.floor(r / 100)));
+let ladderByRank = null, ladderSeen = new Set(ladder ? ladder.seen : []);
+function saveLadder() { if (ladder) ladder.seen = [...ladderSeen].slice(-6000); store.set("tsumego.ladder", ladder); }
+
+async function nextLadder() {
+  try { await ensureBuiltin(); } catch { S.error = "Couldn't load the puzzles. Check your connection."; render(); return; }
+  if (S.mode !== "ladder" || !ladder) return;
+  if (!ladderByRank) {
+    ladderByRank = new Map();
+    for (const it of builtin) if (LADDER_CATS(it.cat)) (ladderByRank.get(it.rank) || ladderByRank.set(it.rank, []).get(it.rank)).push(it);
+  }
+  // mostly a rank or two below you, sometimes at or above: about 60% solved
+  const roll = Math.random(), base = ladRankOf(ladder.r);
+  const want = base + (roll < 0.2 ? -2 : roll < 0.6 ? -1 : roll < 0.9 ? 0 : 1);
+  const ranks = [...ladderByRank.keys()];
+  const rk = ranks.reduce((a, b) => Math.abs(b - want) < Math.abs(a - want) ? b : a);
+  const pool = ladderByRank.get(rk);
+  let item = null;
+  for (let tries = 0; tries < 60 && !item; tries++) { const c = pool[Math.floor(Math.random() * pool.length)]; if (!ladderSeen.has(c.key)) item = c; }
+  item = item || pool[Math.floor(Math.random() * pool.length)];
+  S.list = [item]; S.idx = 0;
+  openAt(0);
+}
+
+function ladderResult(win) {
+  if (S.mode !== "ladder" || !ladder || S.scored || !S.pz) return;
+  S.scored = true;
+  const before = ladder.r, d = S.pz.rank * 100 + 50;
+  const expect = 1 / (1 + 10 ** ((d - before) / 400));
+  const K = ladder.games < 15 ? 96 : 40; // settle quickly at first
+  ladder.r = Math.max(0, Math.min(MAX_R, before + K * ((win ? 1 : 0) - expect)));
+  S.delta = Math.round(ladder.r) - Math.round(before);
+  ladder.games++; if (win) ladder.wins++;
+  ladder.streak = win ? (ladder.streak || 0) + 1 : 0;
+  ladder.hist.push(Math.round(ladder.r)); if (ladder.hist.length > 150) ladder.hist.shift();
+  ladderSeen.add(S.list[S.idx].key);
+  const promoted = ladRankOf(ladder.r) > ladRankOf(before) && ladRankOf(ladder.r) > ladRankOf(ladder.peak);
+  ladder.peak = Math.max(ladder.peak, ladder.r);
+  saveLadder();
+  if (ladRankOf(ladder.r) > ladRankOf(before)) toast(`${promoted ? "Promoted" : "Back up"} to ${rankLabel(ladRankOf(ladder.r))}!`, "gold");
+}
+
+function renderLadder() {
+  $("ladStart").hidden = !!ladder; $("ladMain").hidden = !ladder;
+  if (!ladder) return;
+  const rk = ladRankOf(ladder.r), pct = rk >= 38 ? 100 : Math.floor(ladder.r - rk * 100);
+  $("ladRank").textContent = rankLabel(rk);
+  $("ladPeak").textContent = `Peak ${rankLabel(ladRankOf(ladder.peak))}`;
+  $("ladBar").style.width = `${pct}%`;
+  $("ladNext").innerHTML = rk >= 38 ? "<span>Top of the ladder</span>" : `<span>${pct}% of the way to <b>${rankLabel(rk + 1)}</b></span>`;
+  const h = ladder.hist;
+  if (h.length > 1) {
+    const lo = Math.min(...h) - 30, hi = Math.max(...h) + 30;
+    const pts = h.map((v, i) => `${(i / (h.length - 1)) * 300},${56 - ((v - lo) / (hi - lo)) * 52 - 2}`).join(" ");
+    $("ladSpark").innerHTML = `<polyline points="${pts}" fill="none" style="stroke:var(--gold)" stroke-width="2" vector-effect="non-scaling-stroke" stroke-linejoin="round"/>`;
+  } else $("ladSpark").innerHTML = "";
+  const rate = ladder.games ? Math.round((ladder.wins / ladder.games) * 100) : 0;
+  $("ladStats").innerHTML = `<span>Played <b>${ladder.games.toLocaleString()}</b></span><span>Solved <b>${rate}%</b></span><span>Streak <b>${ladder.streak || 0}</b></span>`;
+}
+
+$("ladStartSel").innerHTML = Array.from({ length: 39 }, (_, n) => `<option value="${n}"${n === 10 ? " selected" : ""}>${rankLabel(n)}</option>`).join("");
+$("ladGo").onclick = () => {
+  const n = +$("ladStartSel").value;
+  ladder = { r: n * 100 + 50, peak: n * 100 + 50, games: 0, wins: 0, streak: 0, hist: [n * 100 + 50], seen: [] };
+  ladderSeen = new Set(); saveLadder();
+  nextLadder();
+};
+let ladResetArmed = null;
+$("ladReset").onclick = () => {
+  const btn = $("ladReset");
+  if (!ladResetArmed) {
+    btn.textContent = "Click again to reset your rank"; btn.classList.add("danger-armed");
+    ladResetArmed = setTimeout(() => { ladResetArmed = null; btn.textContent = "Start the ladder over"; btn.classList.remove("danger-armed"); }, 3500);
+    return;
+  }
+  clearTimeout(ladResetArmed); ladResetArmed = null;
+  btn.textContent = "Start the ladder over"; btn.classList.remove("danger-armed");
+  ladder = null; ladderSeen = new Set(); store.set("tsumego.ladder", null);
+  clearBoard();
+};
+
+/* ---------------- boot ---------------- */
+function boot() {
+  $("shuffleChk").checked = S.shuffle; $("skipChk").checked = S.skip; $("orientChk").checked = S.orient;
+  $("sourceLabel").textContent = "Loading puzzles…";
+  const startMode = saved.mode === "rush" || saved.mode === "ladder" ? saved.mode : null;
+  if (startMode) { S.mode = "practice"; setMode(startMode); }
+  loadBuiltin().catch(() => {
+    S.lib = SAMPLES.map((s) => ({ ...s }));
+    $("sourceLabel").innerHTML = `<b>3</b> sample problems. The built-in set didn't load; open your puzzle folder instead.`;
+    renderSelects(); buildList(); renderTally(); openAt(0);
+  });
+}
+boot();
+})();
+</script>
+
+
+
+</body></html>

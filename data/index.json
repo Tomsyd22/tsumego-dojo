@@ -1,0 +1,1 @@
+{"ranks": [{"rank": "30k", "n": 0, "chunks": [{"file": "data/30k-0.json", "ids": [1], "t": [7]}]}, {"rank": "25k", "n": 5, "chunks": [{"file": "data/25k-0.json", "ids": [1], "t": [7]}]}, {"rank": "20k", "n": 10, "chunks": [{"file": "data/20k-0.json", "ids": [1], "t": [7]}]}], "types": ["life_and_death", "tesuji", "joseki", "fuseki", "endgame", "best_move", "elementary", "other"]}
